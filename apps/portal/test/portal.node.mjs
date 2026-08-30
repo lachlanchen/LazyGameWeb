@@ -184,6 +184,7 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
   await t.test('login uses signed challenge, scrypt, and strict remembered cookie', async () => {
     const login = await request(portalPort, '/login?next=%2Fweiqi%2F')
     assert.equal(login.status, 200)
+    assert.equal(login.headers['referrer-policy'], 'same-origin')
     const challenge = hidden(login.text, 'csrf')
     const loginCookie = cookieFrom(login.headers, '__Host-game_login')
     const badCsrf = await request(portalPort, '/auth/login', {
