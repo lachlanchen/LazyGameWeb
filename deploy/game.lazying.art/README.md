@@ -19,6 +19,14 @@ The site adds one host to the existing Caddy ingress. It does not modify the
 existing 80/443 nftables redirect, LocalLLM manifest, LocalLLM tunnel, LocalLLM
 credentials, or any LocalLLM service.
 
+The reviewed host fragment is
+[`caddy/game.caddy.example`](caddy/game.caddy.example). Install it as a separate
+root-owned include after validating the combined Caddyfile. It overwrites the
+public authority and client-address boundary at the proxy, strips caller-supplied
+forwarding/authentication headers, and suppresses only the game host's misleading
+`Alt-Svc: h3=":10443"` when `10443` is an internal redirect target rather than a
+public QUIC port.
+
 ## Independent release inputs
 
 This repository owns the public portal and non-secret deployment contract. It

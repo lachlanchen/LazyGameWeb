@@ -1,0 +1,35 @@
+http://game.lazying.art {
+    handle /.well-known/acme-challenge/* {
+        root * /var/www/letsencrypt
+        file_server
+    }
+    handle {
+        redir https://{host}{uri} 308
+    }
+}
+
+https://game.lazying.art {
+    import lazyedge_common
+
+    # When 443 is redirected to Caddy's private 10443 listener, the generated
+    # HTTP/3 advertisement names an unreachable public port. Suppress only this
+    # site's misleading Alt-Svc header; HTTP/1.1 and HTTP/2 remain available.
+    header -Alt-Svc
+
+    tls /etc/letsencrypt/live/game.lazying.art/fullchain.pem /etc/letsencrypt/live/game.lazying.art/privkey.pem
+    handle /.well-known/acme-challenge/* {
+        root * /var/www/letsencrypt
+        file_server
+    }
+    handle {
+        reverse_proxy http://127.0.0.1:18620 {
+            header_up Host game.lazying.art
+            header_up -Authorization
+            header_up -Proxy-Authorization
+            header_up -Forwarded
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up X-Lazying-Client-Address {remote_host}
+        }
+    }
+}
