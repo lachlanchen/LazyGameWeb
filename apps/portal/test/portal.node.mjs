@@ -177,6 +177,12 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     const denied = await request(portalPort, '/api/status')
     assert.equal(denied.status, 401)
     assert.equal(JSON.parse(denied.text).code, 'authentication_required')
+    const entry = await request(portalPort, '/')
+    assert.equal(entry.status, 303)
+    assert.equal(entry.headers.location, '/login?next=%2F')
+    assert.equal(entry.headers['set-cookie'].length, 1)
+    assert.match(entry.headers['set-cookie'][0], /^__Host-game_session=/)
+    assert.ok(!entry.headers['set-cookie'][0].startsWith('__Host-game_login='))
   })
 
   let sessionCookie

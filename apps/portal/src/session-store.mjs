@@ -32,6 +32,10 @@ export function clearSessionCookies() {
   return [cookie(SESSION_COOKIE, '', { maxAge: 0 }), cookie(LOGIN_COOKIE, '', { maxAge: 0 })]
 }
 
+export function clearSessionCookie() {
+  return cookie(SESSION_COOKIE, '', { maxAge: 0 })
+}
+
 export class SessionRegistry {
   constructor({ secret, storeFile, username, sessionHours, rememberDays, maxRememberedSessions }) {
     this.secret = secret

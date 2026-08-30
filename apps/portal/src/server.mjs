@@ -18,7 +18,7 @@ import {
   securityHeaders,
   verifyPassword,
 } from './security.mjs'
-import { clearSessionCookies, LOGIN_COOKIE } from './session-store.mjs'
+import { clearSessionCookie, clearSessionCookies, LOGIN_COOKIE } from './session-store.mjs'
 
 const CONTENT_TYPES = new Map([
   ['.avif', 'image/avif'],
@@ -490,7 +490,10 @@ export function createPortalServer({ config, credentials, sessions }) {
       if (!session) {
         if (url.pathname.startsWith('/api/')) throw new HttpError(401, 'authentication_required', 'Authentication is required')
         const next = safeNext(`${url.pathname}${url.search}`)
-        return redirect(response, `/login?next=${encodeURIComponent(next)}`, 303, clearSessionCookies())
+        // Keep any login challenge intact while following the entry redirect.
+        // Clearing it here can race the login page's replacement Set-Cookie on
+        // HTTP/2 and intermittently leave an immediate form POST unbound.
+        return redirect(response, `/login?next=${encodeURIComponent(next)}`, 303, clearSessionCookie())
       }
       if (url.pathname === '/auth/logout') {
         if (request.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Logout requires POST', { Allow: 'POST' })
