@@ -6,8 +6,9 @@ users, capabilities, ports, state directories, and reverse-tunnel identities.
 
 ## Authority boundaries
 
-- The portal authenticates the browser, serves reviewed static releases, and
-  translates only exact browser API contracts.
+- The portal serves one exact logged-out Weiqi spectator entry and its hashed
+  assets, authenticates every play surface, and translates only exact browser
+  API contracts.
 - LazyEdge authenticates and bounds the private relay. Its game capability is
   not shared with unrelated services.
 - The local gateway validates the dispatch envelope and maps it to a fixed
@@ -52,6 +53,13 @@ The portal independently enforces strict session cookies, Origin and
 `Sec-Fetch-Site` checks, a session-bound CSRF header, bounded bodies and
 responses, concurrency limits, login rate limits, CSP, and no-store handling
 for authenticated HTML and API responses.
+
+The public exception is deliberately smaller: GET-only Weiqi archive list,
+featured, and opaque replay-detail routes are rate-limited by the Caddy-
+overwritten client address. They proxy no browser cookie or authorization,
+accept no body, expose no mutation, and return only the game service's redacted
+persisted replay projection. The public spectator index has no CSRF bootstrap;
+entering a learning board performs a full authenticated navigation.
 
 ## Release discipline
 

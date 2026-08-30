@@ -1,6 +1,8 @@
 const GAME_ID = 'game_[0-9a-f]{32}'
 const GAME_ROOT = new RegExp(`^/api/games/(${GAME_ID})$`)
 const GAME_CHILD = new RegExp(`^/api/games/(${GAME_ID})/(coach-history|preview|analysis|moves|agent-turn|rewind|coach)$`)
+const PUBLIC_WEIQI_ID = 'wq_[0-9a-f]{32}'
+const PUBLIC_WEIQI_DETAIL = new RegExp(`^/api/public/weiqi/games/(${PUBLIC_WEIQI_ID})$`)
 
 export class RouteError extends Error {
   constructor(status, code, message) {
@@ -40,6 +42,17 @@ function noQuery(searchParams) {
 export function resolveBrowserApi(method, url) {
   const normalizedMethod = method.toUpperCase()
   const path = url.pathname
+  if (path === '/api/public/weiqi/games') {
+    if (normalizedMethod !== 'GET') throw new RouteError(405, 'method_not_allowed', 'Public Weiqi history requires GET')
+    const query = queryObject(url.searchParams, { limitMax: 50, cursorMax: 160 })
+    return { access: 'public', product: 'weiqi', method: 'GET', path, ...(query ? { query } : {}) }
+  }
+  if (path === '/api/public/weiqi/games/featured' || PUBLIC_WEIQI_DETAIL.test(path)) {
+    if (normalizedMethod !== 'GET') throw new RouteError(405, 'method_not_allowed', 'Public Weiqi replay requires GET')
+    noQuery(url.searchParams)
+    return { access: 'public', product: 'weiqi', method: 'GET', path }
+  }
+  if (path.startsWith('/api/public/')) throw new RouteError(404, 'api_route_not_found', 'Public API route not found')
   if (path === '/api/engine-analysis') {
     if (normalizedMethod !== 'POST') throw new RouteError(405, 'method_not_allowed', 'Chess analysis requires POST')
     noQuery(url.searchParams)

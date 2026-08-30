@@ -1,7 +1,8 @@
 # LazyingArt Game Portal
 
-This package is the small authenticated cloud entrance for the teaching-game
-products. It uses only Node.js built-ins at runtime. The browser reaches this
+This package is the small cloud entrance for the teaching-game products. It
+offers one read-only public Weiqi replay and authenticates every learning/play
+surface. It uses only Node.js built-ins at runtime. The browser reaches this
 service through the reviewed `game.lazying.art` Caddy site; computation remains
 on the private workstation behind one fixed LazyEdge private listener.
 
@@ -11,7 +12,8 @@ on the private workstation behind one fixed LazyEdge private listener.
 - The BFF can call only the configured loopback `POST /v1/game/dispatch` URL.
 - Its bearer capability is read once from a protected regular file. Browser
   Authorization and Cookie headers are never forwarded.
-- The browser API map is code-owned: exact Weiqi routes, Chess
+- The browser API map is code-owned: exact private Weiqi routes, GET-only
+  public Weiqi archive routes, Chess
   `POST /api/engine-analysis`, and DouZero `GET /api/douzero/health` plus
   `POST /api/douzero/analyze`. Unknown paths, methods, queries, encoded
   separators, and traversal fail closed.
@@ -29,11 +31,14 @@ public/
 ```
 
 Each authenticated SPA index receives an external same-origin bootstrap before
-its module scripts. The bootstrap wraps the browser's existing `fetch` and adds
-the session-bound `X-Game-CSRF` value only to same-origin, state-changing
-`/api/` requests. It never adds the value to cross-origin or read-only calls.
-Index HTML, the bootstrap, service workers, manifests, portal pages, and APIs
-are `no-store`; versioned static assets are private immutable responses.
+its module scripts. The public spectator index deliberately omits that
+bootstrap and can request only the exact archive GETs. The bootstrap wraps the
+browser's existing `fetch` and adds the session-bound `X-Game-CSRF` value only
+to same-origin, state-changing `/api/` requests. It never adds the value to
+cross-origin or read-only calls. Index HTML, the bootstrap, service workers,
+manifests, portal pages, and APIs are `no-store`; versioned Weiqi assets needed
+by the spectator are public immutable responses, while other assets remain
+private immutable responses.
 
 ## Credential preparation
 

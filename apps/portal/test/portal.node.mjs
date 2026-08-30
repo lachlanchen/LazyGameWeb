@@ -170,7 +170,7 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     await rm(temporary, { recursive: true, force: true })
   })
 
-  await t.test('health is minimal and unauthenticated APIs fail closed', async () => {
+  await t.test('health is minimal and the unauthenticated root opens the read-only Weiqi spectator', async () => {
     const health = await request(portalPort, '/healthz')
     assert.equal(health.status, 200)
     assert.deepEqual(JSON.parse(health.text), { ok: true, service: 'lazying-game-web', release: 'test-release-0001' })
@@ -180,10 +180,59 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     assert.equal(JSON.parse(denied.text).code, 'authentication_required')
     const entry = await request(portalPort, '/')
     assert.equal(entry.status, 303)
-    assert.equal(entry.headers.location, '/login?next=%2F')
-    assert.equal(entry.headers['set-cookie'].length, 1)
-    assert.match(entry.headers['set-cookie'][0], /^__Host-game_session=/)
-    assert.ok(!entry.headers['set-cookie'][0].startsWith('__Host-game_login='))
+    assert.equal(entry.headers.location, '/weiqi/?view=spectate&autoplay=1')
+    assert.equal(entry.headers['set-cookie'], undefined)
+  })
+
+  await t.test('public spectator assets and archive GETs are narrow, cookie-free, and mutation-free', async () => {
+    const spectator = await request(portalPort, '/weiqi/?view=spectate&autoplay=1', { headers: { Accept: 'text/html' } })
+    assert.equal(spectator.status, 200)
+    assert.equal(spectator.headers['cache-control'], 'no-store')
+    assert.equal(spectator.headers.vary, undefined)
+    assert.ok(spectator.text.includes('type="module"'))
+    assert.ok(!spectator.text.includes('/portal/bootstrap.js'))
+    assert.equal(spectator.headers['set-cookie'], undefined)
+
+    const asset = await request(portalPort, '/weiqi/assets/app.js', { headers: { 'Accept-Encoding': 'gzip' } })
+    assert.equal(asset.status, 200)
+    assert.equal(asset.headers['cache-control'], 'public, max-age=31536000, immutable')
+    assert.equal(asset.headers.vary, 'Accept-Encoding')
+    assert.equal(asset.headers['content-encoding'], 'gzip')
+
+    const list = await request(portalPort, '/api/public/weiqi/games?limit=20&cursor=next-page', {
+      headers: { Cookie: '__Host-game_session=untrusted-browser-state' },
+    })
+    assert.equal(list.status, 200)
+    assert.deepEqual(gatewayCalls.at(-1).envelope, {
+      schema: 'lazyingart.game-dispatch.v1',
+      product: 'weiqi',
+      method: 'GET',
+      path: '/api/public/weiqi/games',
+      query: { limit: 20, cursor: 'next-page' },
+    })
+    assert.equal(gatewayCalls.at(-1).headers.cookie, undefined)
+
+    const publicId = `wq_${'a'.repeat(32)}`
+    const detail = await request(portalPort, `/api/public/weiqi/games/${publicId}`)
+    assert.equal(detail.status, 200)
+    assert.deepEqual(gatewayCalls.at(-1).envelope, {
+      schema: 'lazyingart.game-dispatch.v1',
+      product: 'weiqi',
+      method: 'GET',
+      path: `/api/public/weiqi/games/${publicId}`,
+    })
+
+    assert.equal((await request(portalPort, '/api/public/weiqi/games', { method: 'POST' })).status, 405)
+    assert.equal((await request(portalPort, '/api/public/weiqi/games/private')).status, 404)
+    assert.equal((await request(portalPort, '/api/public/weiqi/games?limit=51')).status, 400)
+    assert.equal((await request(portalPort, '/api/public/weiqi/games', { body: '{}' })).status, 400)
+    assert.equal((await request(portalPort, '/weiqi/assets/app.js?private=1')).status, 400)
+
+    const normalPlay = await request(portalPort, '/weiqi/?view=learn&board=19')
+    assert.equal(normalPlay.status, 303)
+    assert.equal(normalPlay.headers.location, '/login?next=%2Fweiqi%2F%3Fview%3Dlearn%26board%3D19')
+    assert.equal((await request(portalPort, '/api/session')).status, 401)
+    gatewayCalls.length = 0
   })
 
   await t.test('login challenge remains valid through the full failure window', () => {
@@ -384,8 +433,8 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
   await t.test('SPA index injects bootstrap before modules and wrapper limits CSRF to same-origin state changes', async () => {
     const portalHome = await request(portalPort, '/', { headers: { Cookie: sessionCookie } })
     assert.equal(portalHome.status, 200)
-    assert.ok(portalHome.text.includes('/weiqi/?board=19'))
-    assert.ok(portalHome.text.includes('/weiqi/?board=7'))
+    assert.ok(portalHome.text.includes('/weiqi/?view=learn&amp;board=19'))
+    assert.ok(portalHome.text.includes('/weiqi/?view=learn&amp;board=7'))
     assert.ok(portalHome.text.includes('<link rel="icon" href="/favicon.svg" type="image/svg+xml">'))
     assert.ok(!portalHome.text.includes('style="'))
     const index = await request(portalPort, '/weiqi/', { headers: { Cookie: sessionCookie, Accept: 'text/html' } })
@@ -527,7 +576,7 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     const asset = await request(portalPort, '/weiqi/assets/app.js', { headers: { Cookie: sessionCookie, 'Accept-Encoding': 'gzip' } })
     assert.equal(asset.status, 200)
     assert.equal(asset.headers['content-encoding'], 'gzip')
-    assert.equal(asset.headers['cache-control'], 'private, max-age=31536000, immutable')
+    assert.equal(asset.headers['cache-control'], 'public, max-age=31536000, immutable')
     const worker = await request(portalPort, '/weiqi/sw.js', { headers: { Cookie: sessionCookie } })
     assert.equal(worker.status, 200)
     assert.equal(worker.headers['cache-control'], 'no-store')

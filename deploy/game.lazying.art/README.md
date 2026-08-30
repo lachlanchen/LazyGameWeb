@@ -53,13 +53,18 @@ all local game ports must remain unpublished.
 
 | Category | Paths |
 | --- | --- |
-| Weiqi | `/weiqi/`, `/weiqi/full`, board query `board=5|7|9|19` |
+| Visitor Weiqi replay | `/weiqi/?view=spectate&autoplay=1`, with GET-only `/api/public/weiqi/games...` archive reads |
+| Authenticated Weiqi play | `/weiqi/`, `/weiqi/full`, board query `view=learn&board=5|7|9|19` |
 | Chess family | `/chess/?game=chess|xiangqi|shogi` |
 | Mahjong | `/mahjong/?profile=riichi|mcr|hong-kong` |
 | Cards | `/poker/?game=holdem|bridge|guandan|doudizhu` |
 
-Only the explicitly translated browser APIs reach private compute. Static
-assets are served at the cloud edge with immutable cache headers. API and HTML
+The logged-out root redirects to the read-only Weiqi replay. Its index omits the
+authenticated CSRF bootstrap, and only hashed Weiqi assets plus the exact
+namespaced archive GET routes are public. Archive reads return persisted,
+redacted evidence; they never run an engine or mutate a game. All play routes,
+session data, live analysis, and mutations remain authenticated. Static assets
+are served at the cloud edge with immutable cache headers. API and HTML
 responses are `no-store`/`no-cache` as appropriate.
 
 ## Required validation

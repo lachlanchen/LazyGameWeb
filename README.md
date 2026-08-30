@@ -4,14 +4,14 @@
 
 # LazyGameWeb
 
-*A small, authenticated web entrance for serious teaching games powered by private local computation.*
+*A public read-only game window and authenticated learning entrance, powered by private local computation.*
 
 [![Website](https://img.shields.io/badge/Play-game.lazying.art-176B56?style=for-the-badge)](https://game.lazying.art)
 [![Tests](https://github.com/lachlanchen/LazyGameWeb/actions/workflows/test.yml/badge.svg)](https://github.com/lachlanchen/LazyGameWeb/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2F855A?style=for-the-badge)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-LazyGameWeb is the public portal and deployment-contract repository for [game.lazying.art](https://game.lazying.art). It serves the authenticated game catalogue at the cloud edge and forwards a deliberately narrow set of API requests through a dedicated LazyEdge reverse tunnel. Game rules, state transitions, private data, and model inference stay in separately deployed game services; this repository is not coupled to LocalLLM or mutable engine worktrees.
+LazyGameWeb is the public portal and deployment-contract repository for [game.lazying.art](https://game.lazying.art). Logged-out visitors enter a read-only Weiqi replay backed only by redacted, persisted evidence; authenticated learners can enter the full game catalogue. The edge forwards a deliberately narrow set of API requests through a dedicated LazyEdge reverse tunnel. Game rules, state transitions, private data, and model inference stay in separately deployed game services; this repository is not coupled to LocalLLM or mutable engine worktrees.
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -22,6 +22,7 @@ LazyGameWeb is the public portal and deployment-contract repository for [game.la
 - **Small edge service:** the portal uses only Node.js built-ins at runtime.
 - **Fail-closed routing:** browser requests map to an exact code-owned allowlist; unknown methods, paths, queries, and encoded traversal are rejected.
 - **Clear authority:** deterministic game services own rules and legal actions. The portal never invents a move or mutates a game.
+- **Safe public replay:** visitors can watch stored Weiqi games through exact GET-only routes that never start an engine or expose coach conversations.
 - **Private compute:** a dedicated LazyEdge capability and reverse SSH identity isolate game traffic from unrelated services.
 - **Durable login:** password verification, HMAC-backed remembered sessions, CSRF protection, rate limits, strict cookies, and a restrictive CSP are built in.
 - **Immutable releases:** static game bundles and portal code are served from reviewed release directories; secrets and session state live outside them.
@@ -31,7 +32,7 @@ LazyGameWeb is the public portal and deployment-contract repository for [game.la
 ```text
 browser
   -> Caddy TLS ingress
-  -> authenticated LazyGameWeb portal (cloud loopback)
+  -> LazyGameWeb portal (public replay or authenticated learning; cloud loopback)
   -> private LazyEdge listener
   -> dedicated reverse-SSH tunnel
   -> worker guard + strict game gateway (local loopback)

@@ -280,7 +280,7 @@ export function csrfBootstrap(csrfToken) {
   return `(()=>{const csrf=${token};const nativeFetch=window.fetch.bind(window);const stateChanging=new Set(['POST','PUT','PATCH','DELETE']);window.fetch=(input,init={})=>{const request=typeof Request!=='undefined'&&input instanceof Request?input:null;const url=new URL(request?request.url:String(input),window.location.href);const method=String(init.method??request?.method??'GET').toUpperCase();if(url.origin===window.location.origin&&url.pathname.startsWith('/api/')&&stateChanging.has(method)){const headers=new Headers(init.headers??request?.headers);headers.set('X-Game-CSRF',csrf);return nativeFetch(input,{...init,headers})}return nativeFetch(input,init)}})();\n`
 }
 
-async function serveSpaIndex(request, response, config, file) {
+async function serveSpaIndex(request, response, config, file, { authenticated = true } = {}) {
   if (file.metadata.size > 2 * 1024 * 1024) throw new HttpError(500, 'invalid_release_index', 'Application index exceeds its reviewed bound')
   const handle = await open(file.path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW)
   let source
@@ -290,24 +290,28 @@ async function serveSpaIndex(request, response, config, file) {
     await handle.close()
   }
   if (source.includes('/portal/bootstrap.js')) throw new HttpError(500, 'invalid_release_index', 'Application index contains a reserved bootstrap path')
-  const bootstrap = '<script src="/portal/bootstrap.js"></script>'
-  const scriptIndex = source.search(/<script\b/i)
-  const headEnd = source.search(/<\/head\s*>/i)
-  const insertion = scriptIndex >= 0 ? scriptIndex : headEnd
-  if (insertion < 0) throw new HttpError(500, 'invalid_release_index', 'Application index has no safe bootstrap insertion point')
-  const body = Buffer.from(`${source.slice(0, insertion)}${bootstrap}${source.slice(insertion)}`)
+  let rendered = source
+  if (authenticated) {
+    const bootstrap = '<script src="/portal/bootstrap.js"></script>'
+    const scriptIndex = source.search(/<script\b/i)
+    const headEnd = source.search(/<\/head\s*>/i)
+    const insertion = scriptIndex >= 0 ? scriptIndex : headEnd
+    if (insertion < 0) throw new HttpError(500, 'invalid_release_index', 'Application index has no safe bootstrap insertion point')
+    rendered = `${source.slice(0, insertion)}${bootstrap}${source.slice(insertion)}`
+  }
+  const body = Buffer.from(rendered)
   response.statusCode = 200
   applyHeaders(response, securityHeaders({ spa: true }))
   applyHeaders(response, {
     'Cache-Control': 'no-store',
     'Content-Length': String(body.length),
     'Content-Type': 'text/html; charset=utf-8',
-    'Vary': 'Cookie',
+    ...(authenticated ? { Vary: 'Cookie' } : {}),
   })
   response.end(request.method === 'HEAD' ? undefined : body)
 }
 
-async function serveStatic(request, response, config, product, pathname) {
+async function serveStatic(request, response, config, product, pathname, { publicView = false } = {}) {
   const root = join(config.releaseDir, product)
   const prefix = `/${product}/`
   let relativePath = pathname.slice(prefix.length)
@@ -321,7 +325,7 @@ async function serveStatic(request, response, config, product, pathname) {
   const extension = extname(file.path).toLowerCase()
   const contentType = CONTENT_TYPES.get(extension) ?? 'application/octet-stream'
   const entry = relativePath === 'index.html'
-  if (entry) return await serveSpaIndex(request, response, config, file)
+  if (entry) return await serveSpaIndex(request, response, config, file, { authenticated: !publicView })
   const canGzip = !entry
     && file.metadata.size >= 1024
     && COMPRESSIBLE.test(contentType)
@@ -332,10 +336,10 @@ async function serveStatic(request, response, config, product, pathname) {
   const updateChecked = relativePath === 'sw.js' || relativePath === 'manifest.webmanifest'
   applyHeaders(response, {
     'Accept-Ranges': 'none',
-    'Cache-Control': updateChecked ? 'no-store' : 'private, max-age=31536000, immutable',
+    'Cache-Control': updateChecked ? 'no-store' : `${publicView ? 'public' : 'private'}, max-age=31536000, immutable`,
     'Content-Type': contentType,
     'ETag': `"${config.releaseId}-${file.metadata.size.toString(16)}-${Math.trunc(file.metadata.mtimeMs).toString(16)}"`,
-    'Vary': 'Cookie, Accept-Encoding',
+    'Vary': publicView ? 'Accept-Encoding' : 'Cookie, Accept-Encoding',
   })
   if (!canGzip) response.setHeader('Content-Length', String(file.metadata.size))
   else response.setHeader('Content-Encoding', 'gzip')
@@ -344,6 +348,22 @@ async function serveStatic(request, response, config, product, pathname) {
   const stream = handle.createReadStream({ autoClose: true })
   if (canGzip) await pipeline(stream, createGzip({ level: 6 }), response)
   else await pipeline(stream, response)
+}
+
+function isPublicSpectatorView(url) {
+  if (url.pathname !== '/weiqi/') return false
+  const entries = [...url.searchParams.entries()]
+  if (entries.length !== 2) return false
+  const values = new Map()
+  for (const [key, value] of entries) {
+    if (values.has(key)) return false
+    values.set(key, value)
+  }
+  return values.get('view') === 'spectate' && values.get('autoplay') === '1'
+}
+
+function isPublicWeiqiAsset(url) {
+  return url.pathname.startsWith('/weiqi/assets/') && !url.search
 }
 
 async function readUpstreamResponse(response, maximum) {
@@ -501,6 +521,10 @@ export function createPortalServer({ config, credentials, sessions }) {
       limit: config.limits.apiRequestsPerMinute,
       windowMs: 60 * 1000,
     }),
+    publicApi: new FixedWindowRateLimiter({
+      limit: Math.min(120, config.limits.apiRequestsPerMinute),
+      windowMs: 60 * 1000,
+    }),
     upstreamSemaphore: new BoundedSemaphore(config.limits.upstreamConcurrency),
   }
 
@@ -604,8 +628,30 @@ export function createPortalServer({ config, credentials, sessions }) {
         }
         return redirect(response, safeNext(form.next), 303, [created.cookie, clearSessionCookies()[1]])
       }
+      if (url.pathname.startsWith('/api/public/')) {
+        const route = resolveBrowserApi(request.method ?? 'GET', url)
+        if (!route || route.access !== 'public') throw new HttpError(404, 'api_route_not_found', 'Public API route not found')
+        if (request.headers['content-length'] !== undefined || request.headers['transfer-encoding'] !== undefined) {
+          throw new HttpError(400, 'get_body_rejected', 'GET requests must not contain a body')
+        }
+        rateLimitOrThrow(runtime.publicApi, `public:${clientAddress(request)}`, 'public_api_rate_limited')
+        return await dispatchToPrivateGateway(request, response, runtime, route)
+      }
+      if (isPublicSpectatorView(url)) {
+        if (request.method !== 'GET' && request.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Public spectator view accepts GET or HEAD', { Allow: 'GET, HEAD' })
+        return await serveStatic(request, response, config, 'weiqi', url.pathname, { publicView: true })
+      }
+      if (url.pathname.startsWith('/weiqi/assets/')) {
+        if (!isPublicWeiqiAsset(url)) throw new HttpError(400, 'query_not_allowed', 'Public assets do not accept query parameters')
+        if (request.method !== 'GET' && request.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Public assets accept GET or HEAD', { Allow: 'GET, HEAD' })
+        return await serveStatic(request, response, config, 'weiqi', url.pathname, { publicView: true })
+      }
       const session = sessions.authenticate(request.headers.cookie)
       if (!session) {
+        if (url.pathname === '/' && !url.search) {
+          if (request.method !== 'GET' && request.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Portal accepts GET or HEAD', { Allow: 'GET, HEAD' })
+          return redirect(response, '/weiqi/?view=spectate&autoplay=1')
+        }
         if (url.pathname.startsWith('/api/')) throw new HttpError(401, 'authentication_required', 'Authentication is required')
         const next = safeNext(`${url.pathname}${url.search}`)
         // Keep any login challenge intact while following the entry redirect.
