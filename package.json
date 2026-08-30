@@ -1,0 +1,15 @@
+{
+  "name": "lazygameweb",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Secure authenticated portal and deployment contracts for LazyingArt teaching games.",
+  "type": "module",
+  "scripts": {
+    "test": "npm --prefix apps/portal test",
+    "check": "bash scripts/check-public-repo.sh"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT"
+}

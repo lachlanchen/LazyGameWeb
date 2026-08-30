@@ -1,0 +1,5 @@
+# Worker-only binding shape. The deployed file lives outside the repository.
+bindings:
+  game-api:
+    relaySecretFile: /home/lachlan/.config/lazyedge-game/secrets/relay
+    upstreamAuthorizationFile: /home/lachlan/.config/lazyedge-game/secrets/gateway-upstream

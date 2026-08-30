@@ -1,0 +1,5 @@
+# Edge-only binding shape. The deployed file lives outside the repository.
+bindings:
+  game-api:
+    relaySecretFile: /etc/lazyedge-game/secrets/relay
+    clientTokenStore: /var/lib/lazyedge-game/tokens/portal.json

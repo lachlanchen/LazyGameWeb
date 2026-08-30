@@ -1,0 +1,32 @@
+{
+  "schema": "lazyingart.game-portal.config.v1",
+  "releaseId": "replace-with-reviewed-release-id",
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 18620
+  },
+  "publicOrigin": "https://game.lazying.art",
+  "username": "lachlanchen",
+  "releaseDir": "/opt/lazying-game-web/releases/REVIEWED_RELEASE/public",
+  "lazyEdge": {
+    "dispatchUrl": "http://127.0.0.1:18120/v1/game/dispatch",
+    "tokenFile": "/run/credentials/lazying-game-web.service/game-dispatch-token"
+  },
+  "auth": {
+    "passwordVerifierFile": "/run/credentials/lazying-game-web.service/login-password-verifier",
+    "sessionSecretFile": "/run/credentials/lazying-game-web.service/session-secret",
+    "sessionStoreFile": "/var/lib/lazying-game-web/sessions.json",
+    "sessionHours": 8,
+    "rememberDays": 30,
+    "maxRememberedSessions": 128
+  },
+  "limits": {
+    "requestBodyBytes": 1000000,
+    "upstreamResponseBytes": 16777216,
+    "upstreamTimeoutSeconds": 360,
+    "upstreamConcurrency": 4,
+    "apiRequestsPerMinute": 180,
+    "loginAttemptsPer15Minutes": 6,
+    "globalLoginAttemptsPer15Minutes": 60
+  }
+}

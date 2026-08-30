@@ -1,0 +1,18 @@
+{
+  "name": "@lazyingart/game-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Authenticated cloud portal and fixed-contract BFF for LazyingArt teaching games.",
+  "type": "module",
+  "bin": {
+    "game-portal": "./bin/game-portal.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/game-portal.mjs serve --config ./config.example.json",
+    "test": "node --test ./test/portal.node.mjs"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT"
+}

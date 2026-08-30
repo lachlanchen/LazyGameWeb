@@ -1,0 +1,55 @@
+[Unit]
+Description=LazyingArt authenticated game portal
+Wants=network-online.target lazyedge-game-edge.service
+After=network-online.target lazyedge-game-edge.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=lazying-game
+Group=lazying-game
+WorkingDirectory=/opt/lazying-game-web/current
+LoadCredential=game-dispatch-token:/etc/lazying-game/secrets/lazyedge-client
+LoadCredential=login-password-verifier:/etc/lazying-game/secrets/login-password-verifier
+LoadCredential=session-secret:/etc/lazying-game/secrets/session-secret
+ExecStart=/usr/bin/node /opt/lazying-game-web/current/apps/portal/bin/game-portal.mjs serve --config /etc/lazying-game/portal.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=15s
+KillMode=control-group
+StateDirectory=lazying-game
+StateDirectoryMode=0700
+MemoryHigh=384M
+MemoryMax=512M
+CPUQuota=150%
+TasksMax=64
+LimitNOFILE=4096
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/lazying-game
+
+[Install]
+WantedBy=multi-user.target

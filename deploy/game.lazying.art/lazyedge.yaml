@@ -1,0 +1,39 @@
+apiVersion: lazyedge.lazying.art/v1alpha1
+kind: EdgeProject
+
+metadata:
+  name: lazying-game
+
+spec:
+  edge:
+    gatewayListen: 127.0.0.1:17620
+    privateListeners:
+      - service: game-api
+        listen: 127.0.0.1:18120
+
+  transport:
+    provider: openssh-reverse
+    sshHost: 47.84.190.118
+    sshUser: lazyedge-game-tunnel
+    sshPort: 22
+    hostKeyAlias: lazyedge-sshem
+
+  services:
+    - id: game-api
+      profile: generic-http
+      exposure: private
+      domains: []
+      edge:
+        upstream: http://127.0.0.1:18020
+      worker:
+        listen: 127.0.0.1:17820
+        target: http://127.0.0.1:18030
+        healthPath: /healthz
+      public:
+        tokenSet: game-portal
+        maxBodyBytes: 1048576
+        maxConcurrentRequests: 4
+        idleTimeoutSeconds: 330
+        routes:
+          - path: /v1/game/dispatch
+            methods: [POST]

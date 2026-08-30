@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use LazyGameWeb, please cite this repository."
+type: software
+title: "LazyGameWeb: A secure web portal for privately computed teaching games"
+version: 0.1.0
+date-released: 2026-08-30
+abstract: "A dependency-light authenticated portal and deployment boundary for teaching games whose rules and model computation remain in private services."
+authors:
+  - family-names: Chen
+    given-names: Lachlan
+    alias: lachlanchen
+repository-code: "https://github.com/lachlanchen/LazyGameWeb"
+url: "https://game.lazying.art"
+keywords:
+  - board games
+  - game AI
+  - teaching games
+  - reverse tunnel
+  - zero trust
+  - LazyEdge

@@ -1,0 +1,55 @@
+# Dependencies and package-manager caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+
+# Environment, credentials, and private bindings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+credentials/
+bindings.edge.yaml
+bindings.worker.yaml
+portal.json
+
+# Runtime state and private data
+.local/
+.cache/
+data/
+runtime/
+state/
+sessions.json
+*.sqlite
+*.sqlite3
+*.db
+*.pid
+*.sock
+*.log
+
+# Generated releases, bundles, and test evidence
+dist/
+build/
+coverage/
+releases/
+public/weiqi/
+public/chess/
+public/mahjong/
+public/poker/
+screenshots/
+test-results/
+playwright-report/
+
+# Browser and editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

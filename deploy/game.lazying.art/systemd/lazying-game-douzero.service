@@ -1,0 +1,60 @@
+[Unit]
+Description=LazyingArt verified DouZero player model
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=forking
+User=lachlan
+Group=lachlan
+WorkingDirectory=/home/lachlan/.local/share/lazying-game/current/poker
+Environment=DOUZERO_PYTHON=/home/lachlan/miniconda3/bin/python3
+Environment=CUDA_DEVICE_ORDER=PCI_BUS_ID
+Environment=CUDA_VISIBLE_DEVICES=1
+EnvironmentFile=/home/lachlan/.config/lazying-game/gpu1.env
+Environment=OMP_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+PIDFile=/home/lachlan/.local/state/lazying-game/douzero/douzero-model/server.pid
+ExecStartPre=/home/lachlan/.local/share/lazying-game/current/ops/assert-gpu1.sh
+ExecStartPre=/home/lachlan/miniconda3/bin/python3 -B /home/lachlan/.local/share/lazying-game/current/poker/scripts/check-douzero-runtime.py --json --require-cuda
+ExecStart=/bin/bash /home/lachlan/.local/share/lazying-game/current/poker/scripts/run-douzero-model.sh start --device cuda:0
+ExecStop=/bin/bash /home/lachlan/.local/share/lazying-game/current/poker/scripts/run-douzero-model.sh stop
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=45s
+TimeoutStopSec=20s
+KillMode=control-group
+MemoryHigh=2G
+MemoryMax=4G
+CPUQuota=200%
+TasksMax=128
+LimitNOFILE=4096
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/home/lachlan/.local/state/lazying-game/douzero
+BindPaths=/home/lachlan/.local/state/lazying-game/douzero:/home/lachlan/.local/share/lazying-game/current/poker/.local/runtime
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+[Unit]
+Description=LazyEdge dedicated game reverse SSH tunnel
+Wants=network-online.target lazyedge-game-worker.service
+After=network-online.target lazyedge-game-worker.service
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=lachlan
+Group=lachlan
+ExecStart=/usr/bin/ssh -F /home/lachlan/.config/lazyedge-game/ssh/config lazyedge-game-edge
+Restart=always
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+MemoryMax=64M
+CPUQuota=10%
+TasksMax=16
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+[Unit]
+Description=LazyEdge private game worker guard
+Wants=network-online.target lazying-game-gateway.service
+After=network-online.target lazying-game-gateway.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=lachlan
+Group=lachlan
+ExecStart=/usr/bin/node /home/lachlan/.local/share/lazyedge-game/current/node_modules/@lazyingart/lazyedge/bin/lazyedge.mjs serve worker --config /home/lachlan/.config/lazyedge-game/lazyedge.yaml --bindings /home/lachlan/.config/lazyedge-game/bindings.worker.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+MemoryHigh=128M
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=64
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
