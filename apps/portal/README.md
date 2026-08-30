@@ -76,7 +76,14 @@ npm test
 The public Caddy route must preserve Cookie, set Host to `game.lazying.art`,
 and overwrite (never merely pass through) `X-Lazying-Client-Address` with
 Caddy's direct client address. That overwritten value is the only forwarded
-identity trusted by the per-client login limiter; a separate global limiter
-still caps all verification attempts. Caddy must not expose the LazyEdge
-private listener. Use a systemd `StateDirectory` for session state and
+identity trusted by the per-client login failure limiter; a separate global
+failure limiter still bounds brute-force work across all clients. Both windows
+reserve capacity before scrypt, so concurrent verifiers cannot share the last
+failure slot. Only completed invalid-credential attempts commit those
+reservations; valid logins release them, while stale one-time forms and requests
+rejected as verifier-busy reserve nothing. Stale forms receive a fresh challenge
+and a human-readable explanation. The bounded login form accepts the complete
+documented UTF-8 password range, and its refreshed challenge remains valid
+through the 15-minute failure window. Caddy must not expose the
+LazyEdge private listener. Use a systemd `StateDirectory` for session state and
 `LoadCredential` for the three credential files.

@@ -15,6 +15,8 @@ export const LOGIN_COOKIE = '__Host-game_login'
 const STORE_SCHEMA = 'lazyingart.game-portal.sessions.v1'
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const SIGNATURE_PATTERN = /^[A-Za-z0-9_-]{43}$/
+const LOGIN_CHALLENGE_SECONDS = 20 * 60
+const LOGIN_CHALLENGE_FUTURE_SKEW_MS = 60 * 1000
 
 function exactKeys(value, allowed, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object`)
@@ -104,10 +106,10 @@ export class SessionRegistry {
 
   newLoginChallenge(now = Date.now()) {
     const id = randomToken()
-    const expiresAt = now + 10 * 60 * 1000
+    const expiresAt = now + LOGIN_CHALLENGE_SECONDS * 1000
     const signature = hmacBase64Url(this.secret, 'login-csrf', `${id}.${expiresAt}`)
     const value = `v1.${id}.${expiresAt}.${signature}`
-    return { value, cookie: cookie(LOGIN_COOKIE, value, { maxAge: 600 }) }
+    return { value, cookie: cookie(LOGIN_COOKIE, value, { maxAge: LOGIN_CHALLENGE_SECONDS }) }
   }
 
   verifyLoginChallenge(cookieValue, submittedValue, now = Date.now()) {
@@ -115,7 +117,8 @@ export class SessionRegistry {
     const parts = cookieValue.split('.')
     if (parts.length !== 4 || parts[0] !== 'v1' || !SESSION_ID_PATTERN.test(parts[1]) || !/^\d{13}$/.test(parts[2]) || !SIGNATURE_PATTERN.test(parts[3])) return false
     const expiresAt = Number(parts[2])
-    if (!Number.isSafeInteger(expiresAt) || expiresAt <= now || expiresAt > now + 11 * 60 * 1000) return false
+    if (!Number.isSafeInteger(expiresAt) || expiresAt <= now
+      || expiresAt > now + (LOGIN_CHALLENGE_SECONDS * 1000) + LOGIN_CHALLENGE_FUTURE_SKEW_MS) return false
     const expected = hmacBase64Url(this.secret, 'login-csrf', `${parts[1]}.${expiresAt}`)
     return safeEqualString(expected, parts[3])
   }

@@ -10,6 +10,7 @@ import vm from 'node:vm'
 import { normalizeConfig, loadCredentials, PRODUCTS } from '../src/config.mjs'
 import {
   BoundedSemaphore,
+  FixedWindowRateLimiter,
   makeScryptVerifier,
   passwordRecord,
   trustedSystemdCredentialDirectoryMetadata,
@@ -185,13 +186,52 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     assert.ok(!entry.headers['set-cookie'][0].startsWith('__Host-game_login='))
   })
 
+  await t.test('login challenge remains valid through the full failure window', () => {
+    const issuedAt = 1_788_000_000_000
+    const challenge = sessions.newLoginChallenge(issuedAt)
+    assert.match(challenge.cookie, /; Max-Age=1200/)
+    assert.equal(sessions.verifyLoginChallenge(challenge.value, challenge.value, issuedAt + (15 * 60 * 1000)), true)
+    assert.equal(sessions.verifyLoginChallenge(challenge.value, challenge.value, issuedAt + (20 * 60 * 1000)), false)
+  })
+
+  await t.test('root favicon is public, cacheable, HEAD-safe, and method-bounded', async () => {
+    const icon = await request(portalPort, '/favicon.svg')
+    assert.equal(icon.status, 200)
+    assert.equal(icon.headers['content-type'], 'image/svg+xml; charset=utf-8')
+    assert.equal(icon.headers['cache-control'], 'public, max-age=86400, stale-while-revalidate=604800')
+    assert.equal(Number(icon.headers['content-length']), icon.body.length)
+    assert.match(icon.text, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)
+    assert.equal(icon.headers['set-cookie'], undefined)
+
+    const iconHead = await request(portalPort, '/favicon.svg', { method: 'HEAD' })
+    assert.equal(iconHead.status, 200)
+    assert.equal(iconHead.headers['content-type'], icon.headers['content-type'])
+    assert.equal(iconHead.headers['cache-control'], icon.headers['cache-control'])
+    assert.equal(iconHead.headers['content-length'], icon.headers['content-length'])
+    assert.equal(iconHead.body.length, 0)
+
+    for (const method of ['GET', 'HEAD']) {
+      const legacy = await request(portalPort, '/favicon.ico', { method })
+      assert.equal(legacy.status, 308)
+      assert.equal(legacy.headers.location, '/favicon.svg')
+      assert.equal(legacy.headers['cache-control'], icon.headers['cache-control'])
+      assert.equal(legacy.body.length, 0)
+    }
+
+    for (const path of ['/favicon.svg', '/favicon.ico']) {
+      const rejected = await request(portalPort, path, { method: 'POST' })
+      assert.equal(rejected.status, 405)
+      assert.equal(rejected.headers.allow, 'GET, HEAD')
+    }
+  })
+
   let sessionCookie
   let csrfToken
   await t.test('login uses signed challenge, scrypt, and strict remembered cookie', async () => {
     const login = await request(portalPort, '/login?next=%2Fweiqi%2F')
     assert.equal(login.status, 200)
     assert.equal(login.headers['referrer-policy'], 'same-origin')
-    const challenge = hidden(login.text, 'csrf')
+    assert.ok(login.text.includes('<link rel="icon" href="/favicon.svg" type="image/svg+xml">'))
     const loginCookie = cookieFrom(login.headers, '__Host-game_login')
     const badCsrf = await request(portalPort, '/auth/login', {
       method: 'POST',
@@ -204,15 +244,18 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
       body: new URLSearchParams({ csrf: 'wrong', username: 'lachlanchen', password: 'correct horse battery staple', next: '/' }).toString(),
     })
     assert.equal(badCsrf.status, 403)
+    assert.match(badCsrf.text, /expired or was replaced by a newer tab/)
+    const refreshedChallenge = hidden(badCsrf.text, 'csrf')
+    const refreshedLoginCookie = cookieFrom(badCsrf.headers, '__Host-game_login')
     const accepted = await request(portalPort, '/auth/login', {
       method: 'POST',
       headers: {
-        Cookie: loginCookie,
+        Cookie: refreshedLoginCookie,
         Origin: config.publicOrigin,
         'Sec-Fetch-Site': 'same-origin',
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({ csrf: challenge, username: 'lachlanchen', password: 'correct horse battery staple', remember: 'yes', next: '/weiqi/' }).toString(),
+      body: new URLSearchParams({ csrf: refreshedChallenge, username: 'lachlanchen', password: 'correct horse battery staple', remember: 'yes', next: '/weiqi/' }).toString(),
     })
     assert.equal(accepted.status, 303)
     assert.equal(accepted.headers.location, '/weiqi/')
@@ -228,11 +271,122 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     assert.equal((await stat(config.auth.sessionStoreFile)).mode & 0o777, 0o600)
   })
 
+  const loginAttempt = async ({
+    address,
+    password = 'correct horse battery staple',
+    username = 'lachlanchen',
+  } = {}) => {
+    const login = await request(portalPort, '/login')
+    assert.equal(login.status, 200)
+    return await request(portalPort, '/auth/login', {
+      method: 'POST',
+      headers: {
+        Cookie: cookieFrom(login.headers, '__Host-game_login'),
+        Origin: config.publicOrigin,
+        'Sec-Fetch-Site': 'same-origin',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(address ? { 'X-Lazying-Client-Address': address } : {}),
+      },
+      body: new URLSearchParams({
+        csrf: hidden(login.text, 'csrf'),
+        username,
+        password,
+        next: '/',
+      }).toString(),
+    })
+  }
+
+  await t.test('repeated successful acceptance logins do not spend client or global failure budgets', async () => {
+    const successes = config.limits.globalLoginAttemptsPer15Minutes + 2
+    for (let index = 0; index < successes; index += 1) {
+      const accepted = await loginAttempt({ address: '198.51.100.10' })
+      assert.equal(accepted.status, 303, `successful login ${index + 1} was unexpectedly limited`)
+      assert.equal(accepted.headers.location, '/')
+    }
+  })
+
+  await t.test('stale one-time forms refresh without spending either failure budget', async () => {
+    const address = '198.51.100.11'
+    const attempts = config.limits.globalLoginAttemptsPer15Minutes + 2
+    for (let index = 0; index < attempts; index += 1) {
+      const login = await request(portalPort, '/login')
+      const refreshed = await request(portalPort, '/auth/login', {
+        method: 'POST',
+        headers: {
+          Cookie: cookieFrom(login.headers, '__Host-game_login'),
+          Origin: config.publicOrigin,
+          'Sec-Fetch-Site': 'same-origin',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Lazying-Client-Address': address,
+        },
+        body: new URLSearchParams({
+          csrf: 'stale-form-token',
+          username: 'lachlanchen',
+          password: 'not-evaluated',
+          next: '/',
+        }).toString(),
+      })
+      assert.equal(refreshed.status, 403)
+      assert.match(refreshed.text, /expired or was replaced by a newer tab/)
+    }
+    const accepted = await loginAttempt({ address })
+    assert.equal(accepted.status, 303)
+    assert.equal(accepted.headers.location, '/')
+  })
+
+  await t.test('UTF-8 password and malformed native-form bounds return recoverable HTML', async () => {
+    const maximumValidUtf8 = await loginAttempt({
+      address: '198.51.100.12',
+      password: '界'.repeat(1365),
+    })
+    assert.equal(maximumValidUtf8.status, 401)
+    assert.match(maximumValidUtf8.text, /sign-in details were not accepted/)
+
+    const oversizedNativeForm = await loginAttempt({
+      address: '198.51.100.13',
+      password: '界'.repeat(3000),
+    })
+    assert.equal(oversizedNativeForm.status, 413)
+    assert.match(oversizedNativeForm.headers['content-type'], /^text\/html/)
+    assert.match(oversizedNativeForm.text, /too large or malformed/)
+    assert.match(oversizedNativeForm.text, /name="csrf" value="[^\"]+"/)
+  })
+
+  await t.test('client failure budget blocks a later valid password and supplies Retry-After', async () => {
+    const address = '198.51.100.20'
+    for (let index = 0; index < config.limits.loginAttemptsPer15Minutes; index += 1) {
+      const rejected = await loginAttempt({ address, password: 'not-the-password' })
+      assert.equal(rejected.status, 401, `failure ${index + 1} should reach bounded verification`)
+    }
+    const blocked = await loginAttempt({ address })
+    assert.equal(blocked.status, 429)
+    assert.match(blocked.text, /Too many incorrect sign-in attempts/)
+    assert.match(blocked.text, /name="csrf" value="[^\"]+"/)
+    assert.match(blocked.headers['retry-after'], /^\d+$/)
+    assert.ok(Number(blocked.headers['retry-after']) >= 1)
+    assert.ok(Number(blocked.headers['retry-after']) <= 900)
+  })
+
+  await t.test('concurrent invalid credentials cannot share the final client failure slot', async () => {
+    const address = '198.51.100.21'
+    for (let index = 0; index < config.limits.loginAttemptsPer15Minutes - 1; index += 1) {
+      const rejected = await loginAttempt({ address, password: 'not-the-password' })
+      assert.equal(rejected.status, 401)
+    }
+    const finalSlot = await Promise.all([
+      loginAttempt({ address, password: 'still-not-the-password' }),
+      loginAttempt({ address, password: 'also-not-the-password' }),
+    ])
+    assert.deepEqual(finalSlot.map((result) => result.status).sort(), [401, 429])
+    assert.match(finalSlot.find((result) => result.status === 429)?.text ?? '', /Too many incorrect sign-in attempts/)
+  })
+
   await t.test('SPA index injects bootstrap before modules and wrapper limits CSRF to same-origin state changes', async () => {
     const portalHome = await request(portalPort, '/', { headers: { Cookie: sessionCookie } })
     assert.equal(portalHome.status, 200)
     assert.ok(portalHome.text.includes('/weiqi/?board=19'))
     assert.ok(portalHome.text.includes('/weiqi/?board=7'))
+    assert.ok(portalHome.text.includes('<link rel="icon" href="/favicon.svg" type="image/svg+xml">'))
     assert.ok(!portalHome.text.includes('style="'))
     const index = await request(portalPort, '/weiqi/', { headers: { Cookie: sessionCookie, Accept: 'text/html' } })
     assert.equal(index.status, 200)
@@ -289,6 +443,27 @@ test('portal auth, static bootstrap, exact BFF routes, and remembered sessions',
     const results = await Promise.all([attempt(), attempt(), attempt()])
     assert.deepEqual(results.map((result) => result.status).sort(), [401, 401, 503])
     assert.equal(results.find((result) => result.status === 503)?.headers['retry-after'], '2')
+  })
+
+  await t.test('global failure budget blocks a clean client and supplies Retry-After', async () => {
+    // Stale challenges do not spend the budget. The dedicated client failures
+    // above and two completed bounded-worker failures have spent part of the
+    // global budget. Fill only the exact remainder from clean addresses.
+    const alreadyFailed = (2 * config.limits.loginAttemptsPer15Minutes) + 3
+    const remaining = config.limits.globalLoginAttemptsPer15Minutes - alreadyFailed
+    for (let index = 0; index < remaining; index += 1) {
+      const rejected = await loginAttempt({
+        address: `203.0.113.${index + 1}`,
+        password: 'not-the-password',
+      })
+      assert.equal(rejected.status, 401)
+    }
+    const blocked = await loginAttempt({ address: '192.0.2.200' })
+    assert.equal(blocked.status, 429)
+    assert.match(blocked.text, /Too many incorrect sign-in attempts/)
+    assert.match(blocked.headers['retry-after'], /^\d+$/)
+    assert.ok(Number(blocked.headers['retry-after']) >= 1)
+    assert.ok(Number(blocked.headers['retry-after']) <= 900)
   })
 
   await t.test('real Weiqi, Chess, and Poker POSTs require CSRF and become exact dispatch envelopes', async () => {
@@ -426,6 +601,45 @@ test('bounded compute queue removes a request when its browser aborts', async ()
   const releaseAgain = await semaphore.acquire()
   releaseAgain()
   assert.equal(semaphore.active, 0)
+})
+
+test('fixed-window checks are non-consuming and failures reset only after the window', () => {
+  const limiter = new FixedWindowRateLimiter({ limit: 2, windowMs: 15_000, maxEntries: 2 })
+  for (let index = 0; index < 20; index += 1) {
+    assert.deepEqual(limiter.check('client', 1_000), { allowed: true, retryAfterSeconds: 15 })
+  }
+  assert.equal(limiter.entries.size, 0)
+  assert.equal(limiter.consume('client', 1_000).allowed, true)
+  assert.equal(limiter.check('client', 2_000).allowed, true)
+  assert.equal(limiter.consume('client', 2_000).allowed, true)
+  assert.deepEqual(limiter.check('client', 3_000), { allowed: false, retryAfterSeconds: 13 })
+  assert.deepEqual(limiter.consume('client', 3_000), { allowed: false, retryAfterSeconds: 13 })
+  assert.deepEqual(limiter.check('client', 16_000), { allowed: true, retryAfterSeconds: 15 })
+  assert.equal(limiter.entries.size, 0)
+})
+
+test('fixed-window reservations bind concurrent work to remaining failure slots', () => {
+  const limiter = new FixedWindowRateLimiter({ limit: 2, windowMs: 15_000 })
+  const first = limiter.reserve('client', 1_000)
+  const second = limiter.reserve('client', 1_000)
+  assert.equal(first.allowed, true)
+  assert.equal(second.allowed, true)
+  assert.deepEqual(limiter.check('client', 1_000), { allowed: false, retryAfterSeconds: 15 })
+  assert.deepEqual(limiter.reserve('client', 1_000), { allowed: false, retryAfterSeconds: 15 })
+
+  limiter.commit(first.reservation)
+  limiter.release(second.reservation)
+  assert.equal(limiter.check('client', 2_000).allowed, true)
+  const final = limiter.reserve('client', 2_000)
+  assert.equal(final.allowed, true)
+  limiter.commit(final.reservation)
+  assert.equal(limiter.check('client', 3_000).allowed, false)
+  assert.throws(() => limiter.release(final.reservation), /invalid or already settled/)
+
+  const released = new FixedWindowRateLimiter({ limit: 2, windowMs: 15_000 })
+  const unused = released.reserve('successful-client', 1_000)
+  released.release(unused.reservation)
+  assert.equal(released.entries.size, 0)
 })
 
 test('systemd credential materialization accepts only root-owned protected modes', () => {

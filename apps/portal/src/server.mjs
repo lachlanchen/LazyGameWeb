@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { constants as fsConstants } from 'node:fs'
+import { constants as fsConstants, readFileSync } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { isIP } from 'node:net'
@@ -44,6 +44,9 @@ const CONTENT_TYPES = new Map([
   ['.woff2', 'font/woff2'],
 ])
 const COMPRESSIBLE = /^(?:text\/|application\/(?:javascript|json|manifest\+json|wasm)|image\/svg\+xml)/
+const FAVICON_BODY = readFileSync(new URL('../favicon.svg', import.meta.url))
+const FAVICON_CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=604800'
+const LOGIN_FORM_MAX_BYTES = 20_480
 
 class HttpError extends Error {
   constructor(status, code, message, headers = {}) {
@@ -82,6 +85,28 @@ function sendHtml(request, response, status, html, nonce, extraHeaders = {}) {
     ...extraHeaders,
   })
   response.end(request.method === 'HEAD' ? undefined : body)
+}
+
+function sendFavicon(request, response) {
+  response.statusCode = 200
+  applyHeaders(response, securityHeaders({ nonce: 'unused' }))
+  applyHeaders(response, {
+    'Cache-Control': FAVICON_CACHE_CONTROL,
+    'Content-Length': String(FAVICON_BODY.length),
+    'Content-Type': 'image/svg+xml; charset=utf-8',
+  })
+  response.end(request.method === 'HEAD' ? undefined : FAVICON_BODY)
+}
+
+function redirectLegacyFavicon(response) {
+  response.statusCode = 308
+  applyHeaders(response, securityHeaders({ nonce: 'unused' }))
+  applyHeaders(response, {
+    'Cache-Control': FAVICON_CACHE_CONTROL,
+    'Content-Length': '0',
+    Location: '/favicon.svg',
+  })
+  response.end()
 }
 
 function redirect(response, location, status = 303, cookies) {
@@ -216,10 +241,16 @@ function loginCookie(request) {
   }
 }
 
-function loginResponse(request, response, registry, { status = 200, next = '/', error = false } = {}) {
+function loginResponse(request, response, registry, {
+  status = 200,
+  next = '/',
+  error = '',
+  headers = {},
+} = {}) {
   const challenge = registry.newLoginChallenge()
   const nonce = randomToken(18)
   sendHtml(request, response, status, loginPage({ nonce, csrf: challenge.value, next, error }), nonce, {
+    ...headers,
     'Set-Cookie': challenge.cookie,
   })
 }
@@ -412,6 +443,45 @@ function rateLimitOrThrow(limiter, key, code) {
   if (!result.allowed) throw new HttpError(429, code, 'Rate limit exceeded', { 'Retry-After': String(result.retryAfterSeconds) })
 }
 
+function reserveLoginFailureCapacity(runtime, address) {
+  const clientStatus = runtime.loginClients.check(address)
+  const globalStatus = runtime.loginGlobal.check('global')
+  if (!clientStatus.allowed || !globalStatus.allowed) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(
+        clientStatus.allowed ? 0 : clientStatus.retryAfterSeconds,
+        globalStatus.allowed ? 0 : globalStatus.retryAfterSeconds,
+      ),
+    }
+  }
+  const client = runtime.loginClients.reserve(address)
+  const global = runtime.loginGlobal.reserve('global')
+  // Checks and reservations are synchronous in the single Node.js event
+  // loop, so neither status can change between these operations. Keep a
+  // defensive rollback in case a limiter implementation violates that bound.
+  if (!client.allowed || !global.allowed) {
+    if (client.allowed) runtime.loginClients.release(client.reservation)
+    if (global.allowed) runtime.loginGlobal.release(global.reservation)
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(client.retryAfterSeconds, global.retryAfterSeconds),
+    }
+  }
+  return {
+    allowed: true,
+    client: client.reservation,
+    global: global.reservation,
+  }
+}
+
+function settleLoginFailureCapacity(runtime, reservation, failed) {
+  if (!reservation?.allowed) return
+  const action = failed ? 'commit' : 'release'
+  runtime.loginClients[action](reservation.client)
+  runtime.loginGlobal[action](reservation.global)
+}
+
 export function createPortalServer({ config, credentials, sessions }) {
   const runtime = {
     config,
@@ -448,6 +518,12 @@ export function createPortalServer({ config, credentials, sessions }) {
         return sendJson(request, response, 200, { ok: true, service: 'lazying-game-web', release: config.releaseId })
       }
       requireHost(request, config)
+      if (url.pathname === '/favicon.svg' || url.pathname === '/favicon.ico') {
+        if (request.method !== 'GET' && request.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Favicon accepts GET or HEAD', { Allow: 'GET, HEAD' })
+        if (url.search) throw new HttpError(400, 'query_not_allowed', 'Favicon does not accept query parameters')
+        if (url.pathname === '/favicon.ico') return redirectLegacyFavicon(response)
+        return sendFavicon(request, response)
+      }
       if (url.pathname === '/login') {
         if (request.method !== 'GET' && request.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Login page accepts GET or HEAD', { Allow: 'GET, HEAD' })
         const existing = sessions.authenticate(request.headers.cookie)
@@ -457,16 +533,51 @@ export function createPortalServer({ config, credentials, sessions }) {
       if (url.pathname === '/auth/login') {
         if (request.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Login requires POST', { Allow: 'POST' })
         requireSameOrigin(request, config)
-        rateLimitOrThrow(runtime.loginClients, clientAddress(request), 'login_rate_limited')
-        rateLimitOrThrow(runtime.loginGlobal, 'global', 'login_rate_limited')
-        const form = await readForm(request)
+        const address = clientAddress(request)
+        let form
+        try {
+          form = await readForm(request, LOGIN_FORM_MAX_BYTES)
+        } catch (error) {
+          if (error instanceof HttpError && [400, 413, 415].includes(error.status)) {
+            return loginResponse(request, response, sessions, {
+              status: error.status,
+              error: 'This sign-in form was too large or malformed. Please use this refreshed form.',
+            })
+          }
+          throw error
+        }
         const challengeValid = sessions.verifyLoginChallenge(loginCookie(request), form.csrf)
+        if (!challengeValid) {
+          return loginResponse(request, response, sessions, {
+            status: 403,
+            next: safeNext(form.next),
+            error: 'This sign-in page expired or was replaced by a newer tab. Please use this refreshed form.',
+          })
+        }
         const usernameValid = typeof form.username === 'string' && safeEqualString(form.username, config.username)
         let releaseLogin
         try {
           releaseLogin = await runtime.loginSemaphore.acquire()
         } catch {
-          throw new HttpError(503, 'login_busy', 'Sign-in verification is busy; retry shortly', { 'Retry-After': '2' })
+          return loginResponse(request, response, sessions, {
+            status: 503,
+            next: safeNext(form.next),
+            error: 'Sign-in verification is busy. Please wait a moment and submit this refreshed form.',
+            headers: { 'Retry-After': '2' },
+          })
+        }
+        // Reserve one possible failure slot in both windows before scrypt.
+        // Concurrent requests cannot all enter the final slot; successful
+        // verification releases its reservation without spending the budget.
+        const failureCapacity = reserveLoginFailureCapacity(runtime, address)
+        if (!failureCapacity.allowed) {
+          releaseLogin()
+          return loginResponse(request, response, sessions, {
+            status: 429,
+            next: safeNext(form.next),
+            error: `Too many incorrect sign-in attempts. Please wait ${failureCapacity.retryAfterSeconds} seconds and try again.`,
+            headers: { 'Retry-After': String(failureCapacity.retryAfterSeconds) },
+          })
         }
         let passwordValid = false
         try {
@@ -476,8 +587,15 @@ export function createPortalServer({ config, credentials, sessions }) {
         } finally {
           releaseLogin()
         }
-        if (!challengeValid) throw new HttpError(403, 'login_csrf_rejected', 'Login challenge is invalid')
-        if (!usernameValid || !passwordValid) return loginResponse(request, response, sessions, { status: 401, next: safeNext(form.next), error: true })
+        if (!usernameValid || !passwordValid) {
+          settleLoginFailureCapacity(runtime, failureCapacity, true)
+          return loginResponse(request, response, sessions, {
+            status: 401,
+            next: safeNext(form.next),
+            error: 'The sign-in details were not accepted. Please try again.',
+          })
+        }
+        settleLoginFailureCapacity(runtime, failureCapacity, false)
         let created
         try {
           created = await sessions.create({ remember: form.remember === 'yes' })

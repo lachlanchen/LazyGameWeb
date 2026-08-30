@@ -246,17 +246,73 @@ export class FixedWindowRateLimiter {
     this.entries = new Map()
   }
 
-  consume(key, now = Date.now()) {
+  check(key, now = Date.now()) {
     let entry = this.entries.get(key)
-    if (!entry || now >= entry.resetAt) {
-      if (!entry && this.entries.size >= this.maxEntries) this.prune(now)
-      if (!entry && this.entries.size >= this.maxEntries) return { allowed: false, retryAfterSeconds: 60 }
-      entry = { count: 0, resetAt: now + this.windowMs }
+    if (entry && now >= entry.resetAt) {
+      this.entries.delete(key)
+      entry = undefined
+    }
+    if (!entry) {
+      if (this.entries.size >= this.maxEntries) this.prune(now)
+      if (this.entries.size >= this.maxEntries) return { allowed: false, retryAfterSeconds: 60 }
+      return { allowed: true, retryAfterSeconds: Math.max(1, Math.ceil(this.windowMs / 1000)) }
+    }
+    return {
+      allowed: entry.count + entry.pending < this.limit,
+      retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+    }
+  }
+
+  reserve(key, now = Date.now()) {
+    const status = this.check(key, now)
+    if (!status.allowed) return status
+    let entry = this.entries.get(key)
+    if (!entry) {
+      entry = { count: 0, pending: 0, resetAt: now + this.windowMs }
+      this.entries.set(key, entry)
+    }
+    entry.pending += 1
+    return {
+      allowed: true,
+      retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+      reservation: { limiter: this, key, entry, active: true },
+    }
+  }
+
+  commit(reservation) {
+    this.assertReservation(reservation)
+    reservation.active = false
+    reservation.entry.pending -= 1
+    reservation.entry.count += 1
+  }
+
+  release(reservation) {
+    this.assertReservation(reservation)
+    reservation.active = false
+    reservation.entry.pending -= 1
+    if (reservation.entry.count === 0 && reservation.entry.pending === 0
+      && this.entries.get(reservation.key) === reservation.entry) {
+      this.entries.delete(reservation.key)
+    }
+  }
+
+  assertReservation(reservation) {
+    if (!reservation || reservation.limiter !== this || reservation.active !== true || reservation.entry.pending < 1) {
+      throw new Error('Rate limiter reservation is invalid or already settled')
+    }
+  }
+
+  consume(key, now = Date.now()) {
+    const status = this.check(key, now)
+    if (!status.allowed) return status
+    let entry = this.entries.get(key)
+    if (!entry) {
+      entry = { count: 0, pending: 0, resetAt: now + this.windowMs }
       this.entries.set(key, entry)
     }
     entry.count += 1
     return {
-      allowed: entry.count <= this.limit,
+      allowed: true,
       retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
     }
   }

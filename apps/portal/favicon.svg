@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>LazyingArt Games</title>
+  <rect width="64" height="64" rx="18" fill="#153f34"/>
+  <rect x="11" y="11" width="42" height="42" rx="8" fill="#f2d9a0"/>
+  <path d="M22 12v40M32 12v40M42 12v40M12 22h40M12 32h40M12 42h40" fill="none" stroke="#8b7448" stroke-width="1.5"/>
+  <circle cx="22" cy="22" r="7" fill="#17372f"/>
+  <circle cx="42" cy="42" r="7" fill="#fff" stroke="#b69b67" stroke-width="1.5"/>
+</svg>
