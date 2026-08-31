@@ -4,14 +4,14 @@
 
 # LazyGameWeb
 
-*Ein kleines, authentifiziertes Webportal für anspruchsvolle Lernspiele mit privater lokaler Berechnung.*
+*Ein öffentliches Nur-Lese-Spielfenster und ein authentifizierter Lernzugang, gestützt auf private lokale Berechnung.*
 
 [![Website](https://img.shields.io/badge/Play-game.lazying.art-176B56?style=for-the-badge)](https://game.lazying.art)
 [![Tests](https://github.com/lachlanchen/LazyGameWeb/actions/workflows/test.yml/badge.svg)](https://github.com/lachlanchen/LazyGameWeb/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2F855A?style=for-the-badge)](../LICENSE)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-LazyGameWeb ist das öffentliche Portal- und Deployment-Vertragsrepository für [game.lazying.art](https://game.lazying.art). Es liefert den authentifizierten Spielekatalog am Cloud-Rand aus und leitet nur einen engen, ausdrücklich definierten Satz von API-Anfragen durch einen eigenen LazyEdge-Reverse-Tunnel. Regeln, Zustandsübergänge, private Daten und Modellinferenz verbleiben in getrennten Spieldiensten; dieses Repository ist weder an LocalLLM noch an veränderliche Engine-Arbeitsbäume gekoppelt.
+LazyGameWeb ist das Repository für das öffentliche Portal und die Deployment-Verträge von [game.lazying.art](https://game.lazying.art). Nicht angemeldete Besucher gelangen zu einer schreibgeschützten Weiqi-Wiedergabe, die ausschließlich auf redigierten, dauerhaft gespeicherten Nachweisen beruht; authentifizierte Lernende können den vollständigen Spielekatalog aufrufen. Der Edge-Dienst leitet bewusst nur einen engen Satz von API-Anfragen durch einen eigenen LazyEdge-Reverse-Tunnel. Spielregeln, Zustandsübergänge, private Daten und Modellinferenz verbleiben in separat bereitgestellten Spieldiensten; dieses Repository ist weder an LocalLLM noch an veränderliche Engine-Arbeitsbäume gekoppelt.
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -20,36 +20,37 @@ LazyGameWeb ist das öffentliche Portal- und Deployment-Vertragsrepository für 
 ## Designversprechen
 
 - **Kleiner Edge-Dienst:** Das Portal verwendet zur Laufzeit ausschließlich eingebaute Node.js-Module.
-- **Standardmäßig geschlossen:** Eine exakte, im Code definierte Positivliste weist unbekannte Methoden, Pfade und Traversalversuche ab.
+- **Standardmäßig geschlossen:** Browseranfragen werden auf eine exakte, dem Code gehörende Positivliste abgebildet; unbekannte Methoden, Pfade und Abfragen sowie kodierte Traversalversuche werden abgewiesen.
 - **Klare Autorität:** Deterministische Spieldienste besitzen Regeln und legale Aktionen. Das Portal erfindet keinen Zug und verändert kein Spiel.
-- **Private Berechnung:** Eine eigene LazyEdge-Berechtigung und Reverse-SSH-Identität isolieren den Spielverkehr.
-- **Robuste Anmeldung:** scrypt, HMAC-gesicherte Merk-Sitzungen, CSRF-Schutz, Ratenbegrenzung, strikte Cookies und restriktive CSP.
-- **Unveränderliche Releases:** Portal und statische Bundles kommen aus geprüften Release-Verzeichnissen; Geheimnisse und Zustand liegen außerhalb.
+- **Sichere öffentliche Wiedergabe:** Besucher können gespeicherte Weiqi-Partien über exakt definierte reine GET-Routen ansehen, die niemals eine Engine starten oder Trainerunterhaltungen offenlegen.
+- **Private Berechnung:** Eine eigene LazyEdge-Berechtigung und Reverse-SSH-Identität isolieren den Spielverkehr von unabhängigen Diensten.
+- **Robuste Anmeldung:** Passwortprüfung, HMAC-gestützte Merk-Sitzungen, CSRF-Schutz, Ratenbegrenzung, strikte Cookies und eine restriktive CSP sind integriert.
+- **Unveränderliche Releases:** Statische Spiele-Bundles und Portalcode kommen aus geprüften Release-Verzeichnissen; Geheimnisse und Sitzungszustand liegen außerhalb.
 
 ## Architektur
 
 ```text
 browser
   -> Caddy TLS ingress
-  -> authenticated LazyGameWeb portal (cloud loopback)
+  -> LazyGameWeb portal (public replay or authenticated learning; cloud loopback)
   -> private LazyEdge listener
   -> dedicated reverse-SSH tunnel
   -> worker guard + strict game gateway (local loopback)
   -> deterministic game services and bounded engines
 ```
 
-Der öffentliche Host stellt nur das Portal bereit. Privater LazyEdge-Listener, lokales Gateway, APIs, Datenbanken, Engines, Tokens und Modelle bleiben intern. Die [Sicherheitsgrenzen](../docs/security-boundaries.md) beschreiben Vertrauensmodell und Deployment-Anforderungen.
+Der öffentliche Host stellt nur das Portal bereit. LazyEdge-Listener, Gateway, Spiel-APIs, Datenbanken, Engine-Prozesse, Tokens und Modelldateien bleiben privat. Die [Sicherheitsgrenzen](../docs/security-boundaries.md) beschreiben das Vertrauensmodell und die Deployment-Anforderungen.
 
 ## Aktueller Inhalt
 
 | Pfad | Zweck |
 | --- | --- |
-| [`apps/portal/`](../apps/portal/) | Abhängigkeitsfreies Authentifizierungsportal und BFF mit festem Vertrag |
+| [`apps/portal/`](../apps/portal/) | Abhängigkeitsfreies Authentifizierungsportal und Browser-BFF mit festem Vertrag |
 | [`deploy/game.lazying.art/`](../deploy/game.lazying.art/) | Nicht geheimes LazyEdge-Manifest, Binding-Formen und gehärtete systemd-Vorlagen |
-| [`docs/security-boundaries.md`](../docs/security-boundaries.md) | Vertrauensgrenzen, Eigentum von Zugangsdaten und Proxy-Anforderungen |
-| [`scripts/check-public-repo.sh`](../scripts/check-public-repo.sh) | Tests, Syntaxprüfungen und Schutz vor versehentlicher Geheimnisveröffentlichung |
+| [`docs/security-boundaries.md`](../docs/security-boundaries.md) | Vertrauensgrenzen, Eigentum von Zugangsdaten und Reverse-Proxy-Anforderungen |
+| [`scripts/check-public-repo.sh`](../scripts/check-public-repo.sh) | Tests, Syntax- und Shell-Prüfungen sowie Geheimnisschutz für öffentliche Releases |
 
-Generierte Builds für Weiqi, Chess/Xiangqi/Shogi, Mahjong und Kartenspiele sind Release-Eingaben und werden nicht eingecheckt. Engines, Gewichte, Datenbanken, private Bindings, Zugangsdaten, Laufzeitbelege, Caches und Sitzungen bleiben ebenfalls draußen.
+Statische Builds von Weiqi, Chess/Xiangqi/Shogi, Mahjong und Kartenspielen sind Release-Eingaben, keine eingecheckten Artefakte. Engines, Modellgewichte, Datenbanken, private Bindings, Zugangsdaten, Laufzeitbelege, Caches, Browserprofile und Benutzersitzungen sind bewusst ausgeschlossen.
 
 ## Schnellstart
 
@@ -62,7 +63,19 @@ npm test
 npm run check
 ```
 
-Kopiere `apps/portal/config.example.json` an einen privaten Ort außerhalb des Repositorys und stelle geschützte Zugangsdaten-Dateien bereit. Passwörter oder Bearer-Berechtigungen gehören niemals in die Kommandozeile. Deployment-Vertrag prüfen:
+Um das Portal lokal auszuführen, bereite vier vorläufige Produktverzeichnisse mit jeweils einer `index.html` vor, kopiere `apps/portal/config.example.json` aus dem Repository heraus und stelle Zugangsdaten-Dateien bereit, auf die nur ihr Eigentümer zugreifen kann. Übergib niemals ein Passwort oder eine Bearer-Berechtigung über die Kommandozeile.
+
+```bash
+node apps/portal/bin/game-portal.mjs hash-password \
+  --password-file /absolute/private/login.json \
+  --out /absolute/private/login-password-verifier \
+  --username USERNAME
+
+node apps/portal/bin/game-portal.mjs serve \
+  --config /absolute/private/portal.json
+```
+
+Das Deployment-Manifest lässt sich mit der in deiner Umgebung festgelegten LazyEdge-CLI prüfen:
 
 ```bash
 lazyedge validate --config deploy/game.lazying.art/lazyedge.yaml
@@ -71,7 +84,11 @@ lazyedge plan --config deploy/game.lazying.art/lazyedge.yaml
 
 ## Sicherheit und Deployment
 
-Die Beispiele sind geprüfte Vorlagen, kein automatischer Installer. Prüfe Benutzer, Pfade, Ports und GPU-Identitäten für den jeweiligen Host. Der öffentliche Proxy muss `X-Lazying-Client-Address` mit der direkten Peer-Adresse überschreiben, `Host` und `Cookie` erhalten sowie eingehende `Authorization`- und `Proxy-Authorization`-Header entfernen. Veröffentliche niemals den privaten Listener oder lokale Spielports. Sicherheitslücken bitte privat gemäß [SECURITY.md](../SECURITY.md) melden.
+Konfigurationsbeispiele enthalten nur Pfade und Formen. Lege Zugangsdaten außerhalb des Repositorys mit restriktiven Eigentumsrechten an, halte den Laufzeitzustand außerhalb unveränderlicher Releases und prüfe vor der Installation alle Hostnamen, Ports, Benutzer, Modellpfade und GPU-Identitäten für deinen eigenen Host. Die eingecheckten Units sind produktionsorientierte Vorlagen, kein Ein-Befehl-Installer.
+
+Überschreibe am öffentlichen Reverse Proxy `X-Lazying-Client-Address` mit der Adresse des direkten Peers, erhalte die erwarteten Header `Host` und `Cookie` und entferne eingehende Header `Authorization` und `Proxy-Authorization`. Veröffentliche weder den privaten LazyEdge-Listener noch einen lokalen Spielport.
+
+Bitte melde Sicherheitsprobleme vertraulich, wie in [SECURITY.md](../SECURITY.md) beschrieben.
 
 ## Zitieren
 
