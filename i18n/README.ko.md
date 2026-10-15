@@ -13,9 +13,12 @@
 
 LazyGameWeb은 [game.lazying.art](https://game.lazying.art)의 공개 포털과 배포 계약을 담는 저장소입니다. 로그아웃한 방문자는 영속적으로 저장되고 민감 정보가 제거된 증거만을 바탕으로 하는 읽기 전용 Weiqi 리플레이를 볼 수 있으며, 인증된 학습자는 전체 게임 카탈로그에 들어갈 수 있습니다. 엣지는 코드에 명시된 좁은 범위의 API 요청만 전용 LazyEdge 역방향 터널로 전달합니다. 게임 규칙, 상태 전이, 비공개 데이터, 모델 추론은 별도로 배포된 게임 서비스에 남습니다. 이 저장소는 LocalLLM이나 변경 가능한 엔진 작업 트리에 결합되지 않습니다.
 
-| Donate | PayPal | Stripe |
-| --- | --- | --- |
-| [![Donate](https://img.shields.io/badge/Donate-LazyingArt-0EA5E9?style=for-the-badge&logo=kofi&logoColor=white)](https://chat.lazying.art/donate) | [![PayPal](https://img.shields.io/badge/PayPal-RongzhouChen-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen) | [![Stripe](https://img.shields.io/badge/Stripe-Donate-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
+<!-- support:start -->
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/lachlanchen)
+[![LazyingArt Support](https://img.shields.io/badge/LazyingArt-Support-0EA5E9?style=for-the-badge)](https://chat.lazying.art/donate)
+[![PayPal Support](https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen)
+[![Stripe Support](https://img.shields.io/badge/Stripe-Support-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400)
+<!-- support:end -->
 
 ## 설계 약속
 

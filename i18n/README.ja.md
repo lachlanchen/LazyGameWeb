@@ -13,9 +13,12 @@
 
 LazyGameWeb は [game.lazying.art](https://game.lazying.art) の公開ポータルとデプロイ契約を管理するリポジトリです。ログアウト中の訪問者には、永続化され秘匿化された証拠だけに基づく読み取り専用の囲碁リプレイを提供し、認証済みの学習者はゲームカタログ全体を利用できます。エッジは、コードで明示された最小限の API リクエストだけを専用の LazyEdge リバーストンネルへ転送します。ゲームのルール、状態遷移、非公開データ、モデル推論は、個別にデプロイされたゲームサービス側に残ります。本リポジトリは LocalLLM や変更可能なエンジンの作業ツリーに依存しません。
 
-| Donate | PayPal | Stripe |
-| --- | --- | --- |
-| [![Donate](https://img.shields.io/badge/Donate-LazyingArt-0EA5E9?style=for-the-badge&logo=kofi&logoColor=white)](https://chat.lazying.art/donate) | [![PayPal](https://img.shields.io/badge/PayPal-RongzhouChen-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen) | [![Stripe](https://img.shields.io/badge/Stripe-Donate-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
+<!-- support:start -->
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/lachlanchen)
+[![LazyingArt Support](https://img.shields.io/badge/LazyingArt-Support-0EA5E9?style=for-the-badge)](https://chat.lazying.art/donate)
+[![PayPal Support](https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen)
+[![Stripe Support](https://img.shields.io/badge/Stripe-Support-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400)
+<!-- support:end -->
 
 ## 設計上の約束
 

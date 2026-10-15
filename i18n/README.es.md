@@ -13,9 +13,12 @@
 
 LazyGameWeb es el repositorio del portal público y de los contratos de despliegue de [game.lazying.art](https://game.lazying.art). Los visitantes que no han iniciado sesión acceden a una repetición de Weiqi de solo lectura, respaldada únicamente por evidencia persistida y redactada; los estudiantes autenticados pueden entrar en el catálogo completo de juegos. El borde reenvía un conjunto deliberadamente reducido de solicitudes API mediante un túnel inverso LazyEdge dedicado. Las reglas, las transiciones de estado, los datos privados y la inferencia de modelos permanecen en servicios de juego desplegados por separado; este repositorio no está acoplado a LocalLLM ni a árboles de trabajo mutables de motores.
 
-| Donate | PayPal | Stripe |
-| --- | --- | --- |
-| [![Donate](https://img.shields.io/badge/Donate-LazyingArt-0EA5E9?style=for-the-badge&logo=kofi&logoColor=white)](https://chat.lazying.art/donate) | [![PayPal](https://img.shields.io/badge/PayPal-RongzhouChen-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen) | [![Stripe](https://img.shields.io/badge/Stripe-Donate-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
+<!-- support:start -->
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/lachlanchen)
+[![LazyingArt Support](https://img.shields.io/badge/LazyingArt-Support-0EA5E9?style=for-the-badge)](https://chat.lazying.art/donate)
+[![PayPal Support](https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen)
+[![Stripe Support](https://img.shields.io/badge/Stripe-Support-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400)
+<!-- support:end -->
 
 ## Compromiso de diseño
 

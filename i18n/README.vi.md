@@ -13,9 +13,12 @@
 
 LazyGameWeb là kho mã công khai chứa cổng truy cập và hợp đồng triển khai cho [game.lazying.art](https://game.lazying.art). Khách chưa đăng nhập được xem bản phát lại Weiqi chỉ đọc, chỉ dựa trên bằng chứng đã lưu bền vững và đã lược bỏ dữ liệu nhạy cảm; người học đã xác thực có thể vào toàn bộ danh mục trò chơi. Biên đám mây chỉ chuyển tiếp một tập yêu cầu API hẹp, được khai báo rõ trong mã, qua đường hầm ngược LazyEdge riêng. Luật chơi, chuyển trạng thái, dữ liệu riêng tư và suy luận mô hình vẫn nằm trong các dịch vụ trò chơi được triển khai riêng; kho mã này không phụ thuộc LocalLLM hay cây làm việc engine có thể thay đổi.
 
-| Donate | PayPal | Stripe |
-| --- | --- | --- |
-| [![Donate](https://img.shields.io/badge/Donate-LazyingArt-0EA5E9?style=for-the-badge&logo=kofi&logoColor=white)](https://chat.lazying.art/donate) | [![PayPal](https://img.shields.io/badge/PayPal-RongzhouChen-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen) | [![Stripe](https://img.shields.io/badge/Stripe-Donate-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
+<!-- support:start -->
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/lachlanchen)
+[![LazyingArt Support](https://img.shields.io/badge/LazyingArt-Support-0EA5E9?style=for-the-badge)](https://chat.lazying.art/donate)
+[![PayPal Support](https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen)
+[![Stripe Support](https://img.shields.io/badge/Stripe-Support-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400)
+<!-- support:end -->
 
 ## Cam kết thiết kế
 
